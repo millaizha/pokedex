@@ -8,6 +8,7 @@ module.exports = {
     extend: {
       animation: {
         'slide-up': 'slideUp 0.3s ease-out',
+        'spin-slow': 'spin 8s linear infinite',
       },
       keyframes: {
         slideUp: {
@@ -19,12 +20,10 @@ module.exports = {
   },
   plugins: [],
   safelist: [
-    // Add background color classes here to prevent purging
     'bg-gray-400', 'bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-yellow-400',
     'bg-blue-200', 'bg-red-700', 'bg-purple-500', 'bg-yellow-600', 'bg-sky-300',
     'bg-pink-500', 'bg-lime-500', 'bg-yellow-800', 'bg-indigo-500', 'bg-purple-700',
     'bg-gray-700', 'bg-gray-500', 'bg-pink-300', 'bg-gray-300',
-    // Animation classes
     'animate-spin', 'animate-slide-up'
   ]
 }
