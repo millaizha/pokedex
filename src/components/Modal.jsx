@@ -59,17 +59,24 @@ const TYPE_WEAKNESSES = {
 };
 
 export default function PokemonModal({ 
-    pokemonData,
-    image, 
-    types, 
-    id, 
-    name, 
-    url,
-    loading, 
+    pokemonData: initialPokemonData,
+    image: initialImage, 
+    types: initialTypes, 
+    id: initialId, 
+    name: initialName, 
+    url: initialUrl,
+    loading: initialLoading, 
     onClose, 
-    onNavigate,
     fetchPokemonData
 }) {
+    // State for modal's internal Pokemon data - separate from the parent component
+    const [modalPokemonData, setModalPokemonData] = useState(initialPokemonData);
+    const [modalImage, setModalImage] = useState(initialImage);
+    const [modalTypes, setModalTypes] = useState(initialTypes);
+    const [modalId, setModalId] = useState(initialId);
+    const [modalName, setModalName] = useState(initialName);
+    const [modalLoading, setModalLoading] = useState(initialLoading);
+
     const [evolutionChain, setEvolutionChain] = useState([]);
     const [evolutionLoading, setEvolutionLoading] = useState(false);
     const [weaknesses, setWeaknesses] = useState([]);
@@ -84,24 +91,34 @@ export default function PokemonModal({
     const rightColumnRef = useRef(null);
 
     useEffect(() => {
-        if (pokemonData) {
+        // Initialize modal data with props
+        setModalPokemonData(initialPokemonData);
+        setModalImage(initialImage);
+        setModalTypes(initialTypes);
+        setModalId(initialId);
+        setModalName(initialName);
+        setModalLoading(initialLoading);
+    }, [initialPokemonData, initialImage, initialTypes, initialId, initialName, initialLoading]);
+
+    useEffect(() => {
+        if (modalPokemonData) {
             loadPokemonDetails();
         }
-    }, [pokemonData]);
+    }, [modalPokemonData]);
 
     const loadPokemonDetails = async () => {
-        if (!pokemonData) return;
+        if (!modalPokemonData) return;
 
         // Extract past types if available
-        if (pokemonData.past_types && pokemonData.past_types.length > 0) {
-            setPastTypes(pokemonData.past_types);
+        if (modalPokemonData.past_types && modalPokemonData.past_types.length > 0) {
+            setPastTypes(modalPokemonData.past_types);
         } else {
             setPastTypes([]);
         }
         
         // Get weaknesses based on types
         const typeWeaknesses = new Set();
-        types.forEach(type => {
+        modalTypes.forEach(type => {
             if (TYPE_WEAKNESSES[type]) {
                 TYPE_WEAKNESSES[type].forEach(weakness => typeWeaknesses.add(weakness));
             }
@@ -110,7 +127,7 @@ export default function PokemonModal({
         
         try {
             // Get species data to get evolution chain, description, habitat, and color
-            const speciesRes = await fetch(pokemonData.species.url);
+            const speciesRes = await fetch(modalPokemonData.species.url);
             const speciesData = await speciesRes.json();
             setSpeciesData(speciesData);
             
@@ -187,27 +204,48 @@ export default function PokemonModal({
 
     const playCry = (e) => {
         e.stopPropagation();
-        if (audioRef.current && pokemonData?.cries?.latest) {
-            audioRef.current.src = pokemonData.cries.latest;
+        if (audioRef.current && modalPokemonData?.cries?.latest) {
+            audioRef.current.src = modalPokemonData.cries.latest;
             audioRef.current.play().catch(err => {
                 console.error("Failed to play audio:", err);
             });
         }
     };
 
+    // Function to fetch Pokemon data for the modal only
+    const fetchModalPokemonData = async (pokemonUrl) => {
+        setModalLoading(true);
+        try {
+            const res = await fetch(pokemonUrl);
+            const data = await res.json();
+            
+            setModalId(data.id);
+            const paddedId = String(data.id).padStart(3, '0');
+            setModalImage(`${IMAGE_URL}${paddedId}.png`);
+
+            const extractedTypes = data.types.map(t => t.type.name);
+            setModalTypes(extractedTypes);
+            setModalPokemonData(data);
+            setModalName(data.name);
+            
+            setModalLoading(false);
+            return data;
+        } catch (err) {
+            console.error(`Error fetching details for Pokémon:`, err);
+            setModalLoading(false);
+            return null;
+        }
+    };
+
     // Navigate to evolution when clicked
     const handleEvolutionClick = async (evoId) => {
-        if (evoId === id) return; 
+        if (evoId === modalId) return; 
         
         setNavigationLoading(true);
         
         try {
             const newPokemonUrl = `${DETAILS_URL}/${evoId}`;
-            await fetchPokemonData(newPokemonUrl);
-            
-            if (onNavigate) {
-                onNavigate(evoId);
-            }
+            await fetchModalPokemonData(newPokemonUrl);
         } catch (error) {
             console.error("Error navigating to evolution:", error);
         } finally {
@@ -240,15 +278,11 @@ export default function PokemonModal({
     
     const handlePrevPokemon = async (e) => {
         e.stopPropagation();
-        if (id > 1) {
+        if (modalId > 1) {
             setNavigationLoading(true);
             try {
-                const prevPokemonUrl = `${DETAILS_URL}/${id - 1}`;
-                await fetchPokemonData(prevPokemonUrl);
-                
-                if (onNavigate) {
-                    onNavigate(id - 1);
-                }
+                const prevPokemonUrl = `${DETAILS_URL}/${modalId - 1}`;
+                await fetchModalPokemonData(prevPokemonUrl);
             } catch (error) {
                 console.error("Error navigating to previous Pokémon:", error);
             } finally {
@@ -261,12 +295,8 @@ export default function PokemonModal({
         e.stopPropagation();
         setNavigationLoading(true);
         try {
-            const nextPokemonUrl = `${DETAILS_URL}/${id + 1}`;
-            await fetchPokemonData(nextPokemonUrl);
-            
-            if (onNavigate) {
-                onNavigate(id + 1);
-            }
+            const nextPokemonUrl = `${DETAILS_URL}/${modalId + 1}`;
+            await fetchModalPokemonData(nextPokemonUrl);
         } catch (error) {
             console.error("Error navigating to next Pokémon:", error);
         } finally {
@@ -277,7 +307,7 @@ export default function PokemonModal({
     useEffect(() => {
         const handleKeyDown = async (e) => {
             if (e.key === 'ArrowLeft') {
-                if (id > 1) {
+                if (modalId > 1) {
                     e.preventDefault();
                     await handlePrevPokemon(e);
                 }
@@ -291,7 +321,7 @@ export default function PokemonModal({
         
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [id]);
+    }, [modalId]);
 
     return (
         <>
@@ -314,7 +344,7 @@ export default function PokemonModal({
                 </button>
 
                 {/* Previous Pokemon navigation button */}
-                {id > 1 && (
+                {modalId > 1 && (
                     <button 
                         onClick={handlePrevPokemon}
                         className="absolute left-60 top-1/2 transform -translate-y-1/2 bg-white rounded-full p-4 shadow-lg hover:bg-gray-100 z-50 disabled:opacity-50"
@@ -346,24 +376,24 @@ export default function PokemonModal({
                 >
                     {/* Modal */}
                     <div className="p-6">
-                        {loading || navigationLoading ? (
+                        {modalLoading || navigationLoading ? (
                                 <div className="flex justify-center items-center h-64">
                                     <img src="src/assets/pikachu-running.gif" alt="Loading..." className="w-24 h-17" />
                                 </div>
                             
-                        ) : pokemonData ? (
+                        ) : modalPokemonData ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 {/* Left column */}
                                 <div className="flex flex-col items-center">
                                     <img 
-                                        src={image} 
-                                        alt={pokemonData.name}
+                                        src={modalImage} 
+                                        alt={modalPokemonData.name}
                                         className="w-64 h-64 object-contain"
                                     />
                                     <div className="flex flex-col items-center mt-4">
                                         <div className="flex items-center gap-2">
-                                            <h2 className="text-3xl font-bold capitalize">{pokemonData?.name || name}</h2>
-                                            {pokemonData?.cries?.latest && (
+                                            <h2 className="text-3xl font-bold capitalize">{modalPokemonData?.name || modalName}</h2>
+                                            {modalPokemonData?.cries?.latest && (
                                                 <button 
                                                     onClick={playCry}
                                                     className="bg-blue-500 hover:bg-blue-600 text-white rounded-full p-2"
@@ -376,7 +406,7 @@ export default function PokemonModal({
                                             )}
                                         </div>
                                         <div className="flex items-center gap-2 mt-1">
-                                            <span className="text-xl font-bold text-gray-400">#{id}</span>
+                                            <span className="text-xl font-bold text-gray-400">#{modalId}</span>
                                             {speciesData && (
                                                 <span className="text-lg text-gray-600 italic">{getCategory()}</span>
                                             )}
@@ -384,7 +414,7 @@ export default function PokemonModal({
                                     </div>
                                     
                                     <div className="flex gap-2 mt-4">
-                                        {types.map(type => (
+                                        {modalTypes.map(type => (
                                             <span
                                                 key={type}
                                                 className={`text-white text-normal px-5 py-2 rounded-full ${TYPE_COLORS[type] || 'bg-gray-300'}`}
@@ -409,7 +439,7 @@ export default function PokemonModal({
                                                 {evolutionChain.map((evo, index) => (
                                                     <React.Fragment key={evo.id}>
                                                         <div 
-                                                            className={`flex flex-col items-center p-2 rounded-lg cursor-pointer transition-colors ${evo.id === id ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
+                                                            className={`flex flex-col items-center p-2 rounded-lg cursor-pointer transition-colors ${evo.id === modalId ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
                                                             onClick={() => handleEvolutionClick(evo.id)}
                                                         >
                                                             <img 
@@ -442,18 +472,18 @@ export default function PokemonModal({
                                         <div className="grid grid-cols-2 gap-4 text-center">
                                             <div className="p-3 bg-white rounded-lg shadow-sm">
                                                 <p className="font-semibold">Height</p>
-                                                <p className="text-xl">{pokemonData.height / 10} m</p>
+                                                <p className="text-xl">{modalPokemonData.height / 10} m</p>
                                             </div>
                                             <div className="p-3 bg-white rounded-lg shadow-sm">
                                                 <p className="font-semibold">Weight</p>
-                                                <p className="text-xl">{pokemonData.weight / 10} kg</p>
+                                                <p className="text-xl">{modalPokemonData.weight / 10} kg</p>
                                             </div>
                                         </div>
                                     </div>
                                     
                                     <div className="mb-6">
                                         <h3 className="text-xl font-bold mb-2">Base Stats</h3>
-                                        {pokemonData.stats.map((stat) => (
+                                        {modalPokemonData.stats.map((stat) => (
                                             <div key={stat.stat.name} className="mb-2">
                                                 <div className="flex justify-between mb-1">
                                                     <span className="font-medium capitalize">{stat.stat.name.replace('-', ' ')}</span>
@@ -478,11 +508,11 @@ export default function PokemonModal({
                                                 </div>
                                             </div>
                                             
-                                            {pokemonData.held_items && pokemonData.held_items.length > 0 && (
+                                            {modalPokemonData.held_items && modalPokemonData.held_items.length > 0 && (
                                                 <div className="rounded-lg">
                                                     <p className="font-semibold">Held Items</p>
                                                     <ul className="list-disc pl-5">
-                                                        {pokemonData.held_items.map((item, index) => (
+                                                        {modalPokemonData.held_items.map((item, index) => (
                                                             <li key={index} className="capitalize">
                                                                 {item.item.name.replace('-', ' ')}
                                                             </li>
@@ -495,7 +525,7 @@ export default function PokemonModal({
                                             <h3 className="text-xl font-bold mb-2">Abilities</h3>
                                             <div className="p-3 rounded-lg">
                                                 <ul className="list-disc pl-5">
-                                                    {pokemonData.abilities.map((ability) => (
+                                                    {modalPokemonData.abilities.map((ability) => (
                                                         <li key={ability.ability.name} className="capitalize">
                                                             {ability.ability.name.replace('-', ' ')}
                                                             {ability.is_hidden && <span className="text-sm text-gray-500 ml-2">(Hidden)</span>}
@@ -542,11 +572,11 @@ export default function PokemonModal({
                                             )}
                                         </div>
                                     </div>
-                                    {pokemonData.game_indices && pokemonData.game_indices.length > 0 && (
+                                    {modalPokemonData.game_indices && modalPokemonData.game_indices.length > 0 && (
                                         <div className="mb-6">
                                             <h3 className="text-xl font-bold mb-2">Game Appearances</h3>
                                             <div className="flex flex-wrap gap-2">
-                                                {pokemonData.game_indices.slice(0, 8).map((game, index) => (
+                                                {modalPokemonData.game_indices.slice(0, 8).map((game, index) => (
                                                     <span
                                                         key={index}
                                                         className="bg-gray-200 px-3 py-1 rounded-full text-sm capitalize"
@@ -554,9 +584,9 @@ export default function PokemonModal({
                                                         {game.version.name.replace('-', ' ')}
                                                     </span>
                                                 ))}
-                                                {pokemonData.game_indices.length > 8 && (
+                                                {modalPokemonData.game_indices.length > 8 && (
                                                     <span className="text-gray-500 text-sm mt-1">
-                                                        +{pokemonData.game_indices.length - 8} more games
+                                                        +{modalPokemonData.game_indices.length - 8} more games
                                                     </span>
                                                 )}
                                             </div>

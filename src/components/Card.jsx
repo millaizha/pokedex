@@ -31,7 +31,9 @@ export default function Card({ name, url, onNavigate }) {
     const [showModal, setShowModal] = useState(false);
     const [pokemonData, setPokemonData] = useState(null);
     const [loading, setLoading] = useState(true);
-
+    // Store the initial Pokemon data for the card
+    const [initialPokemonData, setInitialPokemonData] = useState(null);
+    
     const fetchPokemonData = async (pokemonUrl) => {
         setLoading(true);
         try {
@@ -39,14 +41,8 @@ export default function Card({ name, url, onNavigate }) {
             const data = await res.json();
             
             console.log(`Fetched data for ${data.name}:`, data);
-            setId(data.id);
-            const paddedId = String(data.id).padStart(3, '0');
-            setImage(`${IMAGE_URL}${paddedId}.png`);
-
-            const extractedTypes = data.types.map(t => t.type.name);
-            setTypes(extractedTypes);
-            setPokemonData(data);
             
+            // Return the data but don't update card state when used by modal navigation
             setLoading(false);
             return data;
         } catch (err) {
@@ -55,9 +51,32 @@ export default function Card({ name, url, onNavigate }) {
             return null;
         }
     };
-
+    
+    // Initial load of Pokemon data for the card
     useEffect(() => {
-        fetchPokemonData(url);
+        const initialLoad = async () => {
+            setLoading(true);
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                
+                setId(data.id);
+                const paddedId = String(data.id).padStart(3, '0');
+                setImage(`${IMAGE_URL}${paddedId}.png`);
+
+                const extractedTypes = data.types.map(t => t.type.name);
+                setTypes(extractedTypes);
+                setPokemonData(data);
+                setInitialPokemonData(data);
+                
+                setLoading(false);
+            } catch (err) {
+                console.error(`Error fetching details for initial Pokémon:`, err);
+                setLoading(false);
+            }
+        };
+        
+        initialLoad();
     }, [url]);
 
     const handleCardClick = () => {
@@ -65,13 +84,20 @@ export default function Card({ name, url, onNavigate }) {
     };
 
     const closeModal = () => {
+        // Reset to initial Pokemon data when closing modal
+        setPokemonData(initialPokemonData);
         setShowModal(false);
+    };
+    
+    // Create a separate function for modal navigation
+    const handleModalNavigation = async (pokemonUrl) => {
+        return await fetchPokemonData(pokemonUrl);
     };
 
     return (
         <>
             <div 
-                className="relative flex flex-col items-center bg-white rounded-2xl shadow-lg pt-24 pb-6 px-6 hover:scale-105 transition-transform min-h-[300px] min-w-[300px] cursor-pointer"
+                className="relative flex flex-col items-center bg-white rounded-2xl shadow-lg pt-20 pb-6 px-6 hover:scale-105 transition-transform min-h-[200px] min-w-[200px] cursor-pointer"
                 onClick={handleCardClick}
             >
                 {image ? (
@@ -84,8 +110,8 @@ export default function Card({ name, url, onNavigate }) {
                     <div className="w-52 h-52 bg-gray-200 animate-pulse rounded-md absolute -top-16 z-10" />
                 )}
 
-                {id && <p className="mt-12 text-3xl text-gray-500">#{id}</p>}
-                <h3 className="text-4xl font-bold capitalize">{pokemonData?.name || name}</h3>
+                {id && <p className="mt-16 text-3xl text-gray-500">#{id}</p>}
+                <h3 className="text-4xl font-bold capitalize">{initialPokemonData?.name || name}</h3>
 
                 <div className="flex flex-wrap justify-center gap-2 mt-3">
                     {types.map(type => (
@@ -110,7 +136,7 @@ export default function Card({ name, url, onNavigate }) {
                     loading={loading}
                     onClose={closeModal}
                     onNavigate={onNavigate}
-                    fetchPokemonData={fetchPokemonData}
+                    fetchPokemonData={handleModalNavigation}
                 />
             )}
         </>
