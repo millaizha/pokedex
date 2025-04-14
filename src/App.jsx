@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import Card from "./components/Card";
 import SearchFilterSort from "./components/Filter";
 
-const LIMIT = 20;
+const LIMIT = 10;
 const DETAILS_URL = "https://pokeapi.co/api/v2/pokemon";
 const SPECIES_URL = "https://pokeapi.co/api/v2/pokemon-species";
 const MAX_POKEMON = 1025;
@@ -21,52 +21,70 @@ function App() {
     games: [],
     sort: { field: "id", direction: "asc" },
   });
-  const [isFilterApplied, setIsFilterApplied] = useState(false);
+  const [isFilterMode, setIsFilterMode] = useState(false);
+  const [descOffset, setDescOffset] = useState(MAX_POKEMON);
+  const [visiblePokemonCount, setVisiblePokemonCount] = useState(LIMIT);
+  const [nameDataLoading, setNameDataLoading] = useState(false);
 
   const observer = useRef();
-  const isFilterActive =
-    filterParams.searchTerm ||
-    filterParams.types.length > 0 ||
-    filterParams.generations.length > 0 ||
-    filterParams.games.length > 0;
 
   const lastPokemonRef = useCallback(
     (node) => {
-      if (loading) return;
+      if (loading || isFilterMode) return;
       if (observer.current) observer.current.disconnect();
 
       observer.current = new IntersectionObserver((entries) => {
         if (entries[0].isIntersecting) {
-          if (filterParams.sort.direction === "desc" && !isFilterActive) {
-            if (allPokemon.some((p) => p.id > 1)) {
-              setOffset((prev) => prev + LIMIT);
+          if (filterParams.sort.field === "id") {
+            if (filterParams.sort.direction === "asc") {
+              if (offset < MAX_POKEMON) {
+                setOffset((prev) => prev + LIMIT);
+              }
+            } else {
+              if (descOffset > LIMIT) {
+                setDescOffset((prev) => Math.max(prev - LIMIT, 1));
+              }
             }
           } else {
-            if (offset < MAX_POKEMON) {
-              setOffset((prev) => prev + LIMIT);
-            }
+            setVisiblePokemonCount((prev) =>
+              Math.min(prev + LIMIT, allPokemon.length)
+            );
           }
         }
       });
 
       if (node) observer.current.observe(node);
     },
-    [loading, offset, filterParams.sort.direction, isFilterActive, allPokemon]
+    [
+      loading,
+      offset,
+      descOffset,
+      filterParams.sort,
+      isFilterMode,
+      allPokemon.length,
+    ]
   );
 
   useEffect(() => {
-    if (isFilterApplied) return;
+    if (isFilterMode || filterParams.sort.field !== "id") return;
 
     const fetchPokemon = async () => {
       setLoading(true);
       try {
-        let fetchOffset = offset;
-        if (filterParams.sort.direction === "desc" && !isFilterActive) {
-          fetchOffset = Math.max(0, MAX_POKEMON - offset - LIMIT);
+        let fetchOffset;
+        let fetchLimit = LIMIT;
+
+        if (filterParams.sort.direction === "asc") {
+          fetchOffset = offset;
+        } else {
+          fetchOffset = Math.max(descOffset - LIMIT, 0);
+          if (fetchOffset === 0) {
+            fetchLimit = descOffset;
+          }
         }
 
         const res = await fetch(
-          `${DETAILS_URL}?limit=${LIMIT}&offset=${fetchOffset}`
+          `${DETAILS_URL}?limit=${fetchLimit}&offset=${fetchOffset}`
         );
         const data = await res.json();
 
@@ -97,7 +115,8 @@ function App() {
               !prev.some((existingPoke) => existingPoke.id === newPoke.id)
           );
 
-          return [...prev, ...newPokemon];
+          const combinedPokemon = [...prev, ...newPokemon];
+          return combinedPokemon;
         });
       } catch (err) {
         console.error("Failed to fetch Pokémon:", err);
@@ -107,10 +126,161 @@ function App() {
     };
 
     fetchPokemon();
-  }, [offset, filterParams.sort.direction, isFilterApplied]);
+  }, [offset, descOffset, filterParams.sort, isFilterMode]);
+
+  useEffect(() => {
+    if (isFilterMode) return;
+
+    if (filterParams.sort.field === "name" && allPokemon.length < MAX_POKEMON) {
+      fetchAllPokemonForNameSorting();
+    }
+  }, [filterParams.sort.field, isFilterMode]);
+
+  useEffect(() => {
+    if (!isFilterMode) {
+      const sortedPokemon = [...allPokemon].sort((a, b) => {
+        const direction = filterParams.sort.direction === "asc" ? 1 : -1;
+        if (filterParams.sort.field === "id") {
+          return (a.id - b.id) * direction;
+        } else if (filterParams.sort.field === "name") {
+          return a.name.localeCompare(b.name) * direction;
+        }
+        return 0;
+      });
+
+      if (filterParams.sort.field === "name") {
+        setDisplayPokemon(sortedPokemon.slice(0, visiblePokemonCount));
+      } else {
+        setDisplayPokemon(sortedPokemon);
+      }
+    }
+  }, [allPokemon, filterParams.sort, isFilterMode, visiblePokemonCount]);
+
+  useEffect(() => {
+    if (allPokemon.length === 0 && offset === 0) {
+      if (filterParams.sort.direction === "asc") {
+        fetchInitialPokemon(0);
+      } else {
+        fetchInitialPokemon(MAX_POKEMON - LIMIT);
+      }
+    }
+  }, []);
+
+  const fetchAllPokemonForNameSorting = async () => {
+    setNameDataLoading(true);
+    try {
+      if (allPokemon.length > MAX_POKEMON * 0.9) {
+        setNameDataLoading(false);
+        return;
+      }
+
+      const totalBatches = Math.ceil(MAX_POKEMON / 100);
+      let allFetchedPokemon = [...allPokemon];
+
+      for (let i = 0; i < totalBatches; i++) {
+        const offset = i * 100;
+        const limit = Math.min(100, MAX_POKEMON - offset);
+
+        const res = await fetch(
+          `${DETAILS_URL}?limit=${limit}&offset=${offset}`
+        );
+        const data = await res.json();
+
+        const pokemonBatch = await Promise.all(
+          data.results.map(async (pokemon) => {
+            const pokemonId = pokemon.url.split("/").filter(Boolean).pop();
+
+            if (allFetchedPokemon.some((p) => p.id === parseInt(pokemonId))) {
+              return null;
+            }
+
+            try {
+              const detailRes = await fetch(`${DETAILS_URL}/${pokemonId}`);
+              const pokemonDetails = await detailRes.json();
+
+              const speciesRes = await fetch(`${SPECIES_URL}/${pokemonId}`);
+              const speciesData = await speciesRes.json();
+
+              return {
+                ...pokemon,
+                id: parseInt(pokemonId),
+                types: pokemonDetails.types.map((t) => t.type.name),
+                generation: parseInt(
+                  speciesData.generation.url.split("/").filter(Boolean).pop()
+                ),
+                games: pokemonDetails.game_indices.map((g) => g.version.name),
+              };
+            } catch (err) {
+              console.error(`Error fetching Pokémon #${pokemonId}:`, err);
+              return null;
+            }
+          })
+        );
+
+        const newPokemon = pokemonBatch.filter(Boolean);
+        allFetchedPokemon = [...allFetchedPokemon, ...newPokemon];
+
+        setAllPokemon(allFetchedPokemon);
+      }
+    } catch (err) {
+      console.error("Failed to fetch all Pokémon for name sorting:", err);
+    } finally {
+      setNameDataLoading(false);
+      setVisiblePokemonCount(LIMIT);
+    }
+  };
+
+  const fetchInitialPokemon = async (startOffset) => {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `${DETAILS_URL}?limit=${LIMIT}&offset=${startOffset}`
+      );
+      const data = await res.json();
+
+      const pokemonWithData = await Promise.all(
+        data.results.map(async (pokemon) => {
+          const pokemonId = pokemon.url.split("/").filter(Boolean).pop();
+          const detailRes = await fetch(`${DETAILS_URL}/${pokemonId}`);
+          const pokemonDetails = await detailRes.json();
+
+          const speciesRes = await fetch(`${SPECIES_URL}/${pokemonId}`);
+          const speciesData = await speciesRes.json();
+
+          return {
+            ...pokemon,
+            id: parseInt(pokemonId),
+            types: pokemonDetails.types.map((t) => t.type.name),
+            generation: parseInt(
+              speciesData.generation.url.split("/").filter(Boolean).pop()
+            ),
+            games: pokemonDetails.game_indices.map((g) => g.version.name),
+          };
+        })
+      );
+
+      setAllPokemon(pokemonWithData);
+
+      const sortedPokemon = [...pokemonWithData].sort((a, b) => {
+        const direction = filterParams.sort.direction === "asc" ? 1 : -1;
+        if (filterParams.sort.field === "id") {
+          return (a.id - b.id) * direction;
+        } else if (filterParams.sort.field === "name") {
+          return a.name.localeCompare(b.name) * direction;
+        }
+        return 0;
+      });
+
+      setDisplayPokemon(sortedPokemon);
+    } catch (err) {
+      console.error("Failed to fetch initial Pokémon:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchAllFilteredPokemon = async (filters) => {
-    setLoading(true);
+    setSearchLoading(true);
     try {
       const allRes = await fetch(`${DETAILS_URL}?limit=${MAX_POKEMON}`);
       const allData = await allRes.json();
@@ -223,84 +393,58 @@ function App() {
       });
 
       setDisplayPokemon(sortedPokemon);
-
-      setAllPokemon((prev) => {
-        const updatedList = [...prev];
-        filteredPokemon.forEach((pokemon) => {
-          if (!updatedList.some((p) => p.id === pokemon.id)) {
-            updatedList.push(pokemon);
-          }
-        });
-        return updatedList;
-      });
     } catch (err) {
       console.error("Failed to fetch filtered Pokémon:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const searchSpecificPokemon = async (searchTerm) => {
-    if (!searchTerm) return;
-
-    const normalizedSearchTerm = searchTerm.toLowerCase();
-    const existingPokemon = allPokemon.find(
-      (p) =>
-        p.name.toLowerCase() === normalizedSearchTerm ||
-        p.id === parseInt(searchTerm)
-    );
-
-    if (existingPokemon) return;
-
-    setSearchLoading(true);
-    try {
-      const searchUrl = isNaN(searchTerm)
-        ? `${DETAILS_URL}/${normalizedSearchTerm}`
-        : `${DETAILS_URL}/${searchTerm}`;
-
-      const detailRes = await fetch(searchUrl);
-      if (!detailRes.ok) throw new Error("Pokemon not found");
-
-      const pokemonDetails = await detailRes.json();
-      const pokemonId = pokemonDetails.id;
-
-      const speciesRes = await fetch(`${SPECIES_URL}/${pokemonId}`);
-      const speciesData = await speciesRes.json();
-
-      const newPokemon = {
-        name: pokemonDetails.name,
-        url: `${DETAILS_URL}/${pokemonId}/`,
-        id: pokemonId,
-        types: pokemonDetails.types.map((t) => t.type.name),
-        generation: parseInt(
-          speciesData.generation.url.split("/").filter(Boolean).pop()
-        ),
-        games: pokemonDetails.game_indices.map((g) => g.version.name),
-      };
-
-      setAllPokemon((prev) => {
-        const updatedList = [...prev, newPokemon].sort((a, b) => a.id - b.id);
-        return updatedList;
-      });
-    } catch (err) {
-      console.error(`Failed to find Pokémon "${searchTerm}":`, err);
     } finally {
       setSearchLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (filterParams.searchTerm) {
-      searchSpecificPokemon(filterParams.searchTerm);
-    }
-
-    if (!isFilterApplied) {
-      applyFilters(allPokemon, filterParams);
-    }
-  }, [filterParams, allPokemon, isFilterApplied]);
-
   const handleFilterChange = (newFilters) => {
+    const isReset =
+      !newFilters.searchTerm &&
+      newFilters.types.length === 0 &&
+      newFilters.generations.length === 0 &&
+      newFilters.games.length === 0 &&
+      newFilters.sort.field === "id" &&
+      newFilters.sort.direction === "asc";
+
+    const isSortFieldChange = filterParams.sort.field !== newFilters.sort.field;
+
+    const isSortDirectionChange =
+      filterParams.sort.direction !== newFilters.sort.direction && !isReset;
+
+    if (isReset) {
+      setFilterParams(newFilters);
+      setIsFilterMode(false);
+      setOffset(0);
+      setDescOffset(MAX_POKEMON);
+      setAllPokemon([]);
+      setVisiblePokemonCount(LIMIT);
+      fetchInitialPokemon(0);
+      return;
+    }
+
     setFilterParams(newFilters);
+
+    if (isSortFieldChange || isSortDirectionChange) {
+      setVisiblePokemonCount(LIMIT);
+    }
+
+    if (
+      isSortDirectionChange &&
+      !isFilterMode &&
+      newFilters.sort.field === "id"
+    ) {
+      setAllPokemon([]);
+      if (newFilters.sort.direction === "asc") {
+        setOffset(0);
+        fetchInitialPokemon(0);
+      } else {
+        setDescOffset(MAX_POKEMON);
+        fetchInitialPokemon(MAX_POKEMON - LIMIT);
+      }
+    }
 
     const isAnyFilterActive =
       newFilters.searchTerm ||
@@ -309,92 +453,34 @@ function App() {
       newFilters.games.length > 0;
 
     if (isAnyFilterActive) {
-      setIsFilterApplied(true);
+      setIsFilterMode(true);
       fetchAllFilteredPokemon(newFilters);
-    } else {
-      setIsFilterApplied(false);
-      applyFilters(allPokemon, newFilters);
-    }
-  };
+    } else if (!(isSortDirectionChange && newFilters.sort.field === "id")) {
+      setIsFilterMode(false);
 
-  const applyFilters = (pokemonList, filters) => {
-    if (!pokemonList.length) return;
+      if (
+        newFilters.sort.field === "name" &&
+        allPokemon.length < MAX_POKEMON / 2
+      ) {
+        fetchAllPokemonForNameSorting();
+      } else {
+        const sortedPokemon = [...allPokemon].sort((a, b) => {
+          const direction = newFilters.sort.direction === "asc" ? 1 : -1;
+          if (newFilters.sort.field === "id") {
+            return (a.id - b.id) * direction;
+          } else if (newFilters.sort.field === "name") {
+            return a.name.localeCompare(b.name) * direction;
+          }
+          return 0;
+        });
 
-    let filteredList = [...pokemonList];
-
-    const isAnyFilterActive =
-      filters.searchTerm ||
-      filters.types.length > 0 ||
-      filters.generations.length > 0 ||
-      filters.games.length > 0;
-
-    if (!isAnyFilterActive) {
-      filteredList.sort((a, b) => {
-        const direction = filters.sort.direction === "asc" ? 1 : -1;
-
-        if (filters.sort.field === "id") {
-          return (a.id - b.id) * direction;
-        } else if (filters.sort.field === "name") {
-          return a.name.localeCompare(b.name) * direction;
+        if (newFilters.sort.field === "name") {
+          setDisplayPokemon(sortedPokemon.slice(0, visiblePokemonCount));
+        } else {
+          setDisplayPokemon(sortedPokemon);
         }
-
-        return 0;
-      });
-
-      setDisplayPokemon(filteredList);
-      return;
-    }
-
-    if (filters.searchTerm) {
-      const searchLower = filters.searchTerm.toLowerCase();
-      const isNumeric = !isNaN(filters.searchTerm);
-
-      filteredList = filteredList.filter(
-        (pokemon) =>
-          pokemon.name.toLowerCase().includes(searchLower) ||
-          (isNumeric && pokemon.id === parseInt(filters.searchTerm))
-      );
-    }
-
-    if (filters.types.length > 0) {
-      filteredList = filteredList.filter((pokemon) =>
-        filters.types.some((type) => pokemon.types.includes(type))
-      );
-    }
-
-    if (filters.generations.length > 0) {
-      filteredList = filteredList.filter((pokemon) =>
-        filters.generations.includes(pokemon.generation)
-      );
-    }
-
-    if (filters.games.length > 0) {
-      filteredList = filteredList.filter((pokemon) =>
-        filters.games.some((game) => pokemon.games.includes(game))
-      );
-    }
-
-    filteredList.sort((a, b) => {
-      const direction = filters.sort.direction === "asc" ? 1 : -1;
-
-      if (filters.sort.field === "id") {
-        return (a.id - b.id) * direction;
-      } else if (filters.sort.field === "name") {
-        return a.name.localeCompare(b.name) * direction;
       }
-
-      return 0;
-    });
-
-    if (
-      filters.sort.direction === "desc" &&
-      !isAnyFilterActive &&
-      filteredList.length < 60
-    ) {
-      setOffset((prev) => prev + LIMIT);
     }
-
-    setDisplayPokemon(filteredList);
   };
 
   const handleNavigate = async (id) => {
@@ -440,36 +526,10 @@ function App() {
     }
   };
 
-  useEffect(() => {
-    if (
-      isFilterActive &&
-      displayPokemon.length < 5 &&
-      offset < MAX_POKEMON &&
-      allPokemon.length < 100 &&
-      !isFilterApplied
-    ) {
-      setOffset((prev) => prev + LIMIT);
-    }
-
-    if (
-      filterParams.sort.direction === "desc" &&
-      allPokemon.length < 60 &&
-      !isFilterActive &&
-      !isFilterApplied
-    ) {
-      setOffset((prev) => prev + LIMIT);
-    }
-  }, [
-    displayPokemon,
-    isFilterActive,
-    offset,
-    allPokemon.length,
-    filterParams.sort.direction,
-    isFilterApplied,
-  ]);
+  const isAnyLoading = loading || searchLoading || nameDataLoading;
 
   return (
-    <div className="App ">
+    <div className="App">
       <div className="fixed inset-0 z-0 flex items-center justify-center pointer-events-none">
         <img
           src="src/assets/pokeball.png"
@@ -497,10 +557,10 @@ function App() {
         <div className="md:w-2/3 lg:w-3/4 pt-24">
           <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-y-16 gap-x-8 w-[66vw]">
             {displayPokemon.map((pokemon, index) => {
-              if (index === displayPokemon.length - 1) {
+              if (index === displayPokemon.length - 1 && !isFilterMode) {
                 return (
                   <div
-                    ref={!isFilterApplied ? lastPokemonRef : null}
+                    ref={lastPokemonRef}
                     key={`${pokemon.name}-${pokemon.id}`}
                     id={`pokemon-${pokemon.id}`}
                   >
@@ -527,7 +587,7 @@ function App() {
             })}
           </div>
 
-          {displayPokemon.length === 0 && !loading && !searchLoading && (
+          {displayPokemon.length === 0 && !isAnyLoading && (
             <div className="flex justify-center items-center h-64">
               <p className="text-xl text-gray-600">
                 No Pokémon found matching your filters
@@ -535,7 +595,7 @@ function App() {
             </div>
           )}
 
-          {(loading || searchLoading) && (
+          {isAnyLoading && (
             <div className="flex justify-center items-center h-32">
               <img
                 src="src/assets/pikachu-running.gif"
