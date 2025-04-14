@@ -21,8 +21,8 @@ function App() {
     games: [],
     sort: { field: "id", direction: "asc" },
   });
+  const [isFilterApplied, setIsFilterApplied] = useState(false);
 
-  // For infinite scrolling
   const observer = useRef();
   const isFilterActive =
     filterParams.searchTerm ||
@@ -55,6 +55,8 @@ function App() {
   );
 
   useEffect(() => {
+    if (isFilterApplied) return;
+
     const fetchPokemon = async () => {
       setLoading(true);
       try {
@@ -105,7 +107,138 @@ function App() {
     };
 
     fetchPokemon();
-  }, [offset, filterParams.sort.direction]);
+  }, [offset, filterParams.sort.direction, isFilterApplied]);
+
+  const fetchAllFilteredPokemon = async (filters) => {
+    setLoading(true);
+    try {
+      const allRes = await fetch(`${DETAILS_URL}?limit=${MAX_POKEMON}`);
+      const allData = await allRes.json();
+
+      let pokemonList = [...allData.results];
+
+      const batchSize = 10;
+      const filteredPokemon = [];
+
+      for (let i = 0; i < pokemonList.length; i += batchSize) {
+        const batch = pokemonList.slice(i, i + batchSize);
+
+        const batchResults = await Promise.all(
+          batch.map(async (pokemon) => {
+            const pokemonId = pokemon.url.split("/").filter(Boolean).pop();
+
+            try {
+              const detailRes = await fetch(`${DETAILS_URL}/${pokemonId}`);
+              const pokemonDetails = await detailRes.json();
+
+              const speciesRes = await fetch(`${SPECIES_URL}/${pokemonId}`);
+              const speciesData = await speciesRes.json();
+
+              const pokemonData = {
+                ...pokemon,
+                id: parseInt(pokemonId),
+                types: pokemonDetails.types.map((t) => t.type.name),
+                generation: parseInt(
+                  speciesData.generation.url.split("/").filter(Boolean).pop()
+                ),
+                games: pokemonDetails.game_indices.map((g) => g.version.name),
+              };
+
+              let matches = true;
+
+              if (filters.searchTerm) {
+                const searchLower = filters.searchTerm.toLowerCase();
+                const isNumeric = !isNaN(filters.searchTerm);
+
+                if (
+                  !(
+                    pokemonData.name.toLowerCase().includes(searchLower) ||
+                    (isNumeric &&
+                      pokemonData.id === parseInt(filters.searchTerm))
+                  )
+                ) {
+                  matches = false;
+                }
+              }
+
+              if (matches && filters.types.length > 0) {
+                if (
+                  !filters.types.some((type) =>
+                    pokemonData.types.includes(type)
+                  )
+                ) {
+                  matches = false;
+                }
+              }
+
+              if (matches && filters.generations.length > 0) {
+                if (!filters.generations.includes(pokemonData.generation)) {
+                  matches = false;
+                }
+              }
+
+              if (matches && filters.games.length > 0) {
+                if (
+                  !filters.games.some((game) =>
+                    pokemonData.games.includes(game)
+                  )
+                ) {
+                  matches = false;
+                }
+              }
+
+              return matches ? pokemonData : null;
+            } catch (err) {
+              console.error(`Error fetching Pokémon #${pokemonId}:`, err);
+              return null;
+            }
+          })
+        );
+
+        filteredPokemon.push(...batchResults.filter(Boolean));
+
+        if (i % (batchSize * 5) === 0 || i + batchSize >= pokemonList.length) {
+          const sortedPokemon = [...filteredPokemon].sort((a, b) => {
+            const direction = filters.sort.direction === "asc" ? 1 : -1;
+            if (filters.sort.field === "id") {
+              return (a.id - b.id) * direction;
+            } else if (filters.sort.field === "name") {
+              return a.name.localeCompare(b.name) * direction;
+            }
+            return 0;
+          });
+
+          setDisplayPokemon(sortedPokemon);
+        }
+      }
+
+      const sortedPokemon = [...filteredPokemon].sort((a, b) => {
+        const direction = filters.sort.direction === "asc" ? 1 : -1;
+        if (filters.sort.field === "id") {
+          return (a.id - b.id) * direction;
+        } else if (filters.sort.field === "name") {
+          return a.name.localeCompare(b.name) * direction;
+        }
+        return 0;
+      });
+
+      setDisplayPokemon(sortedPokemon);
+
+      setAllPokemon((prev) => {
+        const updatedList = [...prev];
+        filteredPokemon.forEach((pokemon) => {
+          if (!updatedList.some((p) => p.id === pokemon.id)) {
+            updatedList.push(pokemon);
+          }
+        });
+        return updatedList;
+      });
+    } catch (err) {
+      console.error("Failed to fetch filtered Pokémon:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const searchSpecificPokemon = async (searchTerm) => {
     if (!searchTerm) return;
@@ -161,11 +294,27 @@ function App() {
       searchSpecificPokemon(filterParams.searchTerm);
     }
 
-    applyFilters(allPokemon, filterParams);
-  }, [filterParams, allPokemon]);
+    if (!isFilterApplied) {
+      applyFilters(allPokemon, filterParams);
+    }
+  }, [filterParams, allPokemon, isFilterApplied]);
 
   const handleFilterChange = (newFilters) => {
     setFilterParams(newFilters);
+
+    const isAnyFilterActive =
+      newFilters.searchTerm ||
+      newFilters.types.length > 0 ||
+      newFilters.generations.length > 0 ||
+      newFilters.games.length > 0;
+
+    if (isAnyFilterActive) {
+      setIsFilterApplied(true);
+      fetchAllFilteredPokemon(newFilters);
+    } else {
+      setIsFilterApplied(false);
+      applyFilters(allPokemon, newFilters);
+    }
   };
 
   const applyFilters = (pokemonList, filters) => {
@@ -296,7 +445,8 @@ function App() {
       isFilterActive &&
       displayPokemon.length < 5 &&
       offset < MAX_POKEMON &&
-      allPokemon.length < 100
+      allPokemon.length < 100 &&
+      !isFilterApplied
     ) {
       setOffset((prev) => prev + LIMIT);
     }
@@ -304,7 +454,8 @@ function App() {
     if (
       filterParams.sort.direction === "desc" &&
       allPokemon.length < 60 &&
-      !isFilterActive
+      !isFilterActive &&
+      !isFilterApplied
     ) {
       setOffset((prev) => prev + LIMIT);
     }
@@ -314,6 +465,7 @@ function App() {
     offset,
     allPokemon.length,
     filterParams.sort.direction,
+    isFilterApplied,
   ]);
 
   return (
@@ -348,7 +500,7 @@ function App() {
               if (index === displayPokemon.length - 1) {
                 return (
                   <div
-                    ref={lastPokemonRef}
+                    ref={!isFilterApplied ? lastPokemonRef : null}
                     key={`${pokemon.name}-${pokemon.id}`}
                     id={`pokemon-${pokemon.id}`}
                   >
