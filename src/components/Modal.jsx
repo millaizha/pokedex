@@ -526,8 +526,12 @@ export default function PokemonModal({
                         Evolution Chain
                       </h3>
                       {evolutionLoading ? (
-                        <div className="flex justify-center items-center h-24">
-                          <div className="animate-spin rounded-full h-8 w-8 border-t-4 border-blue-500"></div>
+                        <div className="flex justify-center items-center h-64">
+                          <img
+                            src="src/assets/pikachu-running.gif"
+                            alt="Loading..."
+                            className="w-24 h-17"
+                          />
                         </div>
                       ) : evolutionChain.length > 0 ? (
                         <div className="flex flex-wrap items-center justify-center gap-4">

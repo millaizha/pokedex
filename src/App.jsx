@@ -25,6 +25,7 @@ function App() {
   const [descOffset, setDescOffset] = useState(MAX_POKEMON);
   const [visiblePokemonCount, setVisiblePokemonCount] = useState(LIMIT);
   const [nameDataLoading, setNameDataLoading] = useState(false);
+  const [searchError, setSearchError] = useState(null);
 
   const observer = useRef();
 
@@ -279,8 +280,69 @@ function App() {
     }
   };
 
+  const searchPokemonDirectly = async (searchTerm) => {
+    setSearchLoading(true);
+    setSearchError(null);
+
+    try {
+      const cleanedSearchTerm = searchTerm.toLowerCase().trim();
+
+      const response = await fetch(`${DETAILS_URL}/${cleanedSearchTerm}`);
+
+      if (!response.ok) {
+        setDisplayPokemon([]);
+        setSearchError(`No Pokémon found with name or ID "${searchTerm}"`);
+        setSearchLoading(false);
+        return [];
+      }
+
+      const pokemonDetails = await response.json();
+      const speciesRes = await fetch(`${SPECIES_URL}/${pokemonDetails.id}`);
+      const speciesData = await speciesRes.json();
+
+      const pokemonData = {
+        name: pokemonDetails.name,
+        url: `${DETAILS_URL}/${pokemonDetails.id}/`,
+        id: pokemonDetails.id,
+        types: pokemonDetails.types.map((t) => t.type.name),
+        generation: parseInt(
+          speciesData.generation.url.split("/").filter(Boolean).pop()
+        ),
+        games: pokemonDetails.game_indices.map((g) => g.version.name),
+      };
+
+      setAllPokemon((prev) => {
+        if (!prev.some((p) => p.id === pokemonData.id)) {
+          return [...prev, pokemonData];
+        }
+        return prev;
+      });
+
+      setDisplayPokemon([pokemonData]);
+      return [pokemonData];
+    } catch (err) {
+      console.error("Failed to search Pokémon:", err);
+      setDisplayPokemon([]);
+      setSearchError(`No Pokémon found with name or ID "${searchTerm}"`);
+      return [];
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
   const fetchAllFilteredPokemon = async (filters) => {
     setSearchLoading(true);
+    setSearchError(null);
+
+    if (
+      filters.searchTerm &&
+      filters.types.length === 0 &&
+      filters.generations.length === 0 &&
+      filters.games.length === 0
+    ) {
+      return await searchPokemonDirectly(filters.searchTerm);
+    }
+
     try {
       const allRes = await fetch(`${DETAILS_URL}?limit=${MAX_POKEMON}`);
       const allData = await allRes.json();
@@ -392,9 +454,16 @@ function App() {
         return 0;
       });
 
+      if (sortedPokemon.length === 0) {
+        setSearchError("No Pokémon found matching your filters");
+      }
+
       setDisplayPokemon(sortedPokemon);
+      return sortedPokemon;
     } catch (err) {
       console.error("Failed to fetch filtered Pokémon:", err);
+      setSearchError("Error fetching Pokémon data");
+      return [];
     } finally {
       setSearchLoading(false);
     }
@@ -421,6 +490,7 @@ function App() {
       setDescOffset(MAX_POKEMON);
       setAllPokemon([]);
       setVisiblePokemonCount(LIMIT);
+      setSearchError(null);
       fetchInitialPokemon(0);
       return;
     }
@@ -457,6 +527,7 @@ function App() {
       fetchAllFilteredPokemon(newFilters);
     } else if (!(isSortDirectionChange && newFilters.sort.field === "id")) {
       setIsFilterMode(false);
+      setSearchError(null);
 
       if (
         newFilters.sort.field === "name" &&
@@ -590,17 +661,17 @@ function App() {
           {displayPokemon.length === 0 && !isAnyLoading && (
             <div className="flex justify-center items-center h-64">
               <p className="text-xl text-gray-600">
-                No Pokémon found matching your filters
+                {searchError || "No Pokémon found matching your filters"}
               </p>
             </div>
           )}
 
           {isAnyLoading && (
-            <div className="flex justify-center items-center h-32">
+            <div className="flex justify-center items-centerh-32">
               <img
                 src="src/assets/pikachu-running.gif"
                 alt="Loading..."
-                className="w-24 h-17"
+                className="w-72 h-51 z-10"
               />
             </div>
           )}
