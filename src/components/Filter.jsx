@@ -7,6 +7,7 @@ import {
 } from "../utils/constants";
 
 function SearchFilterSort({ onApplyFilters }) {
+  // State variables for search, filter, and sort options
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTypes, setSelectedTypes] = useState([]);
   const [selectedGenerations, setSelectedGenerations] = useState([]);
@@ -14,8 +15,10 @@ function SearchFilterSort({ onApplyFilters }) {
   const [sortField, setSortField] = useState("id");
   const [sortDirection, setSortDirection] = useState("asc");
 
+  // Tracks if filters have changed since last apply
   const [filtersChanged, setFiltersChanged] = useState(false);
 
+  // Collects all filter options and passes them to parent component
   const handleApplyFilters = () => {
     const filters = {
       searchTerm,
@@ -29,11 +32,13 @@ function SearchFilterSort({ onApplyFilters }) {
     setFiltersChanged(false);
   };
 
+  // Updates search term and marks filters as changed
   const handleSearchChange = (e) => {
     setSearchTerm(e.target.value);
     setFiltersChanged(true);
   };
 
+  // Generic function to toggle items in selection arrays
   const toggleSelection = (array, item, setter) => {
     const newArray = array.includes(item)
       ? array.filter((i) => i !== item)
@@ -43,28 +48,34 @@ function SearchFilterSort({ onApplyFilters }) {
     setFiltersChanged(true);
   };
 
+  // Handles toggling Pokemon type selection
   const handleTypeSelect = (type) => {
     toggleSelection(selectedTypes, type, setSelectedTypes);
   };
 
+  // Handles toggling generation selection
   const handleGenerationSelect = (gen) => {
     toggleSelection(selectedGenerations, gen, setSelectedGenerations);
   };
 
+  // Handles toggling game selection
   const handleGameSelect = (game) => {
     toggleSelection(selectedGames, game, setSelectedGames);
   };
 
+  // Updates sort field and marks filters as changed
   const handleSortChange = (e) => {
     setSortField(e.target.value);
     setFiltersChanged(true);
   };
 
+  // Toggles sort direction between ascending and descending
   const handleDirectionChange = () => {
     setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
     setFiltersChanged(true);
   };
 
+  // Resets all filters to default values
   const handleResetFilters = () => {
     const resetFilters = {
       searchTerm: "",
@@ -87,8 +98,10 @@ function SearchFilterSort({ onApplyFilters }) {
 
   return (
     <div className="bg-[#EDF2F1] rounded-lg shadow-md p-4 ">
+      {/* Main filter panel heading */}
       <h2 className="text-3xl font-semibold mb-4">Search & Filter</h2>
 
+      {/* Search input for Pokemon name or ID */}
       <div className="mb-4">
         <label
           htmlFor="search"
@@ -106,6 +119,7 @@ function SearchFilterSort({ onApplyFilters }) {
         />
       </div>
 
+      {/* Pokemon type filter buttons */}
       <div className="mb-4">
         <h3 className="text-xl font-medium text-gray-700 mb-1">
           Filter by Type
@@ -127,6 +141,7 @@ function SearchFilterSort({ onApplyFilters }) {
         </div>
       </div>
 
+      {/* Generation filter buttons */}
       <div className="mb-4">
         <h3 className="text-xl font-medium text-gray-700 mb-1">
           Filter by Generation
@@ -148,6 +163,7 @@ function SearchFilterSort({ onApplyFilters }) {
         </div>
       </div>
 
+      {/* Game filter dropdown and selected games display */}
       <div className="mb-4">
         <h3 className="text-xl font-medium text-gray-700 mb-1">
           Filter by Game
@@ -168,6 +184,7 @@ function SearchFilterSort({ onApplyFilters }) {
           ))}
         </select>
 
+        {/* Display selected games as removable tags */}
         {selectedGames.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-2">
             {selectedGames.map((game) => (
@@ -183,6 +200,7 @@ function SearchFilterSort({ onApplyFilters }) {
         )}
       </div>
 
+      {/* Sort options with field dropdown and direction toggle */}
       <div className="mb-6">
         <h3 className="text-xl font-medium text-gray-700 mb-1">Sort By</h3>
         <div className="flex items-center">
@@ -205,6 +223,7 @@ function SearchFilterSort({ onApplyFilters }) {
         </div>
       </div>
 
+      {/* Action buttons for applying or resetting filters */}
       <div className="flex flex-col space-y-2">
         <button
           onClick={handleApplyFilters}

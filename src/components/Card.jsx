@@ -1,11 +1,9 @@
 import React, { useEffect, useState, useRef } from "react";
 import PokemonModal from "./Modal";
-import {
-  IMAGE_URL,
-  TYPE_COLORS
-} from "../utils/constants";
+import { IMAGE_URL, TYPE_COLORS } from "../utils/constants";
 
 export default function Card({ name, url, onNavigate }) {
+  // State variables for Pokemon data and UI control
   const [image, setImage] = useState(null);
   const [id, setId] = useState(null);
   const [types, setTypes] = useState([]);
@@ -14,6 +12,7 @@ export default function Card({ name, url, onNavigate }) {
   const [loading, setLoading] = useState(true);
   const [initialPokemonData, setInitialPokemonData] = useState(null);
 
+  // Fetches detailed Pokemon data from provided URL
   const fetchPokemonData = async (pokemonUrl) => {
     setLoading(true);
     try {
@@ -31,6 +30,7 @@ export default function Card({ name, url, onNavigate }) {
     }
   };
 
+  // Loads initial Pokemon data when component mounts or URL changes
   useEffect(() => {
     const initialLoad = async () => {
       setLoading(true);
@@ -57,25 +57,30 @@ export default function Card({ name, url, onNavigate }) {
     initialLoad();
   }, [url]);
 
+  // Opens the detail modal when card is clicked
   const handleCardClick = () => {
     setShowModal(true);
   };
 
+  // Closes the modal and resets Pokemon data to initial state
   const closeModal = () => {
     setPokemonData(initialPokemonData);
     setShowModal(false);
   };
 
+  // Handles navigation between Pokemon within the modal
   const handleModalNavigation = async (pokemonUrl) => {
     return await fetchPokemonData(pokemonUrl);
   };
 
   return (
     <>
+      {/* Main Pokemon card component */}
       <div
         className="relative flex flex-col items-center bg-[#EDF2F1] rounded-2xl shadow-lg pt-20 pb-6 px-6 hover:scale-105 hover:bg-[#D0E4F1] transition-transform transition duration-300 ease-in-out min-h-[200px] min-w-[200px] cursor-pointer"
         onClick={handleCardClick}
       >
+        {/* Pokemon image with loading fallback */}
         {image ? (
           <img
             src={image}
@@ -92,11 +97,14 @@ export default function Card({ name, url, onNavigate }) {
           </div>
         )}
 
+        {/* Pokemon ID number */}
         {id && <p className="mt-16 text-3xl text-gray-500">#{id}</p>}
+        {/* Pokemon name */}
         <h3 className="text-4xl font-bold capitalize">
           {initialPokemonData?.name || name}
         </h3>
 
+        {/* Pokemon type badges */}
         <div className="flex flex-wrap justify-center gap-2 mt-3">
           {types.map((type) => (
             <span
@@ -111,6 +119,7 @@ export default function Card({ name, url, onNavigate }) {
         </div>
       </div>
 
+      {/* Pokemon detail modal */}
       {showModal && (
         <PokemonModal
           pokemonData={pokemonData}

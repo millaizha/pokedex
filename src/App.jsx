@@ -1,54 +1,63 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import Card from "./components/Card";
 import SearchFilterSort from "./components/Filter";
-import {
-  DETAILS_URL,
-  SPECIES_URL
-} from "./utils/constants";
+import { DETAILS_URL, SPECIES_URL } from "./utils/constants";
 
-const LIMIT = 10;
-const MAX_POKEMON = 1025;
+// Configuration constants
+const LIMIT = 10; // Number of Pokemon to load in each batch
+const MAX_POKEMON = 1025; // Maximum number of Pokemon in the database
 
 function App() {
-  const [allPokemon, setAllPokemon] = useState([]);
-  const [displayPokemon, setDisplayPokemon] = useState([]);
-  const [offset, setOffset] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [selectedPokemonId, setSelectedPokemonId] = useState(null);
+  // Main state variables
+  const [allPokemon, setAllPokemon] = useState([]); // Stores all fetched Pokemon data
+  const [displayPokemon, setDisplayPokemon] = useState([]); // Pokemon currently displayed
+  const [offset, setOffset] = useState(0); // Pagination offset for forward loading
+  const [loading, setLoading] = useState(false); // General loading state
+  const [searchLoading, setSearchLoading] = useState(false); // Loading state for search operations
+  const [selectedPokemonId, setSelectedPokemonId] = useState(null); // Currently selected Pokemon
   const [filterParams, setFilterParams] = useState({
     searchTerm: "",
     types: [],
     generations: [],
     games: [],
-    sort: { field: "id", direction: "asc" },
+    sort: { field: "id", direction: "asc" }, // Default sorting by ID ascending
   });
-  const [isFilterMode, setIsFilterMode] = useState(false);
-  const [descOffset, setDescOffset] = useState(MAX_POKEMON);
-  const [visiblePokemonCount, setVisiblePokemonCount] = useState(LIMIT);
-  const [nameDataLoading, setNameDataLoading] = useState(false);
-  const [searchError, setSearchError] = useState(null);
+  const [isFilterMode, setIsFilterMode] = useState(false); // Whether filter/search is active
+  const [descOffset, setDescOffset] = useState(MAX_POKEMON); // Offset for reverse loading (descending order)
+  const [visiblePokemonCount, setVisiblePokemonCount] = useState(LIMIT); // Number of Pokemon visible in name sort
+  const [nameDataLoading, setNameDataLoading] = useState(false); // Loading state for name sort data
+  const [searchError, setSearchError] = useState(null); // Error message for search operations
 
+  // Ref for intersection observer (infinite scrolling)
   const observer = useRef();
 
+  // Callback for infinite scroll functionality
   const lastPokemonRef = useCallback(
     (node) => {
+      // Don't observe if loading or in filter mode
       if (loading || isFilterMode) return;
+
+      // Disconnect previous observer if exists
       if (observer.current) observer.current.disconnect();
 
+      // Create new intersection observer
       observer.current = new IntersectionObserver((entries) => {
         if (entries[0].isIntersecting) {
+          // When last element is visible, load more based on current sort
           if (filterParams.sort.field === "id") {
             if (filterParams.sort.direction === "asc") {
+              // Forward pagination - increment offset
               if (offset < MAX_POKEMON) {
                 setOffset((prev) => prev + LIMIT);
               }
             } else {
+              // Reverse pagination - decrement offset
               if (descOffset > LIMIT) {
                 setDescOffset((prev) => Math.max(prev - LIMIT, 1));
               }
             }
           } else {
+            // For name sort, just show more of already loaded Pokemon
             setVisiblePokemonCount((prev) =>
               Math.min(prev + LIMIT, allPokemon.length)
             );
@@ -56,6 +65,7 @@ function App() {
         }
       });
 
+      // Observe the last element
       if (node) observer.current.observe(node);
     },
     [
@@ -68,7 +78,9 @@ function App() {
     ]
   );
 
+  // Effect for loading Pokemon in batches (for ID sort)
   useEffect(() => {
+    // Skip if filter mode is active or sort field isn't id
     if (isFilterMode || filterParams.sort.field !== "id") return;
 
     const fetchPokemon = async () => {
@@ -77,29 +89,36 @@ function App() {
         let fetchOffset;
         let fetchLimit = LIMIT;
 
+        // Calculate offset based on sort direction
         if (filterParams.sort.direction === "asc") {
           fetchOffset = offset;
         } else {
+          // For descending, calculate offset from end
           fetchOffset = Math.max(descOffset - LIMIT, 0);
           if (fetchOffset === 0) {
-            fetchLimit = descOffset;
+            fetchLimit = descOffset; // Adjust limit for last batch
           }
         }
 
+        // Fetch batch of Pokemon
         const res = await fetch(
           `${DETAILS_URL}?limit=${fetchLimit}&offset=${fetchOffset}`
         );
         const data = await res.json();
 
+        // Fetch detailed data for each Pokemon
         const pokemonWithData = await Promise.all(
           data.results.map(async (pokemon) => {
             const pokemonId = pokemon.url.split("/").filter(Boolean).pop();
+            // Get Pokemon details
             const detailRes = await fetch(`${DETAILS_URL}/${pokemonId}`);
             const pokemonDetails = await detailRes.json();
 
+            // Get species data for generation info
             const speciesRes = await fetch(`${SPECIES_URL}/${pokemonId}`);
             const speciesData = await speciesRes.json();
 
+            // Return combined data
             return {
               ...pokemon,
               id: parseInt(pokemonId),
@@ -112,6 +131,7 @@ function App() {
           })
         );
 
+        // Update state with new Pokemon, avoiding duplicates
         setAllPokemon((prev) => {
           const newPokemon = pokemonWithData.filter(
             (newPoke) =>
@@ -131,16 +151,20 @@ function App() {
     fetchPokemon();
   }, [offset, descOffset, filterParams.sort, isFilterMode]);
 
+  // Effect to load all Pokemon when switching to name sort
   useEffect(() => {
     if (isFilterMode) return;
 
+    // When switching to name sort, fetch all Pokemon if not already loaded
     if (filterParams.sort.field === "name" && allPokemon.length < MAX_POKEMON) {
       fetchAllPokemonForNameSorting();
     }
   }, [filterParams.sort.field, isFilterMode]);
 
+  // Effect to sort displayed Pokemon when sort parameters change
   useEffect(() => {
     if (!isFilterMode) {
+      // Sort the Pokemon based on current sort parameters
       const sortedPokemon = [...allPokemon].sort((a, b) => {
         const direction = filterParams.sort.direction === "asc" ? 1 : -1;
         if (filterParams.sort.field === "id") {
@@ -151,6 +175,7 @@ function App() {
         return 0;
       });
 
+      // For name sort, only show a limited number (for performance)
       if (filterParams.sort.field === "name") {
         setDisplayPokemon(sortedPokemon.slice(0, visiblePokemonCount));
       } else {
@@ -159,24 +184,28 @@ function App() {
     }
   }, [allPokemon, filterParams.sort, isFilterMode, visiblePokemonCount]);
 
+  // Initial data load on component mount
   useEffect(() => {
     if (allPokemon.length === 0 && offset === 0) {
       if (filterParams.sort.direction === "asc") {
-        fetchInitialPokemon(0);
+        fetchInitialPokemon(0); // First batch from start
       } else {
-        fetchInitialPokemon(MAX_POKEMON - LIMIT);
+        fetchInitialPokemon(MAX_POKEMON - LIMIT); // First batch from end
       }
     }
   }, []);
 
+  // Function to fetch all Pokemon for name sorting
   const fetchAllPokemonForNameSorting = async () => {
     setNameDataLoading(true);
     try {
+      // Skip if we already have most Pokemon
       if (allPokemon.length > MAX_POKEMON * 0.9) {
         setNameDataLoading(false);
         return;
       }
 
+      // Fetch all Pokemon in batches of 100
       const totalBatches = Math.ceil(MAX_POKEMON / 100);
       let allFetchedPokemon = [...allPokemon];
 
@@ -189,21 +218,26 @@ function App() {
         );
         const data = await res.json();
 
+        // Fetch details for each Pokemon in batch
         const pokemonBatch = await Promise.all(
           data.results.map(async (pokemon) => {
             const pokemonId = pokemon.url.split("/").filter(Boolean).pop();
 
+            // Skip if already fetched
             if (allFetchedPokemon.some((p) => p.id === parseInt(pokemonId))) {
               return null;
             }
 
             try {
+              // Get Pokemon details
               const detailRes = await fetch(`${DETAILS_URL}/${pokemonId}`);
               const pokemonDetails = await detailRes.json();
 
+              // Get species data
               const speciesRes = await fetch(`${SPECIES_URL}/${pokemonId}`);
               const speciesData = await speciesRes.json();
 
+              // Return combined data
               return {
                 ...pokemon,
                 id: parseInt(pokemonId),
@@ -220,9 +254,11 @@ function App() {
           })
         );
 
+        // Add valid results to collection
         const newPokemon = pokemonBatch.filter(Boolean);
         allFetchedPokemon = [...allFetchedPokemon, ...newPokemon];
 
+        // Update state with batch results
         setAllPokemon(allFetchedPokemon);
       }
     } catch (err) {
@@ -233,14 +269,17 @@ function App() {
     }
   };
 
+  // Function to fetch initial batch of Pokemon
   const fetchInitialPokemon = async (startOffset) => {
     setLoading(true);
     try {
+      // Fetch initial batch
       const res = await fetch(
         `${DETAILS_URL}?limit=${LIMIT}&offset=${startOffset}`
       );
       const data = await res.json();
 
+      // Get detailed data for each Pokemon
       const pokemonWithData = await Promise.all(
         data.results.map(async (pokemon) => {
           const pokemonId = pokemon.url.split("/").filter(Boolean).pop();
@@ -262,8 +301,10 @@ function App() {
         })
       );
 
+      // Store results
       setAllPokemon(pokemonWithData);
 
+      // Sort and display results
       const sortedPokemon = [...pokemonWithData].sort((a, b) => {
         const direction = filterParams.sort.direction === "asc" ? 1 : -1;
         if (filterParams.sort.field === "id") {
@@ -282,6 +323,7 @@ function App() {
     }
   };
 
+  // Function to search for a specific Pokemon by name or ID
   const searchPokemonDirectly = async (searchTerm) => {
     setSearchLoading(true);
     setSearchError(null);
@@ -289,19 +331,23 @@ function App() {
     try {
       const cleanedSearchTerm = searchTerm.toLowerCase().trim();
 
+      // Direct API call for the specific Pokemon
       const response = await fetch(`${DETAILS_URL}/${cleanedSearchTerm}`);
 
       if (!response.ok) {
+        // Pokemon not found
         setDisplayPokemon([]);
         setSearchError(`No Pokémon found with name or ID "${searchTerm}"`);
         setSearchLoading(false);
         return [];
       }
 
+      // Get details for the found Pokemon
       const pokemonDetails = await response.json();
       const speciesRes = await fetch(`${SPECIES_URL}/${pokemonDetails.id}`);
       const speciesData = await speciesRes.json();
 
+      // Format data
       const pokemonData = {
         name: pokemonDetails.name,
         url: `${DETAILS_URL}/${pokemonDetails.id}/`,
@@ -313,6 +359,7 @@ function App() {
         games: pokemonDetails.game_indices.map((g) => g.version.name),
       };
 
+      // Add to collection if not already there
       setAllPokemon((prev) => {
         if (!prev.some((p) => p.id === pokemonData.id)) {
           return [...prev, pokemonData];
@@ -320,6 +367,7 @@ function App() {
         return prev;
       });
 
+      // Display only this Pokemon
       setDisplayPokemon([pokemonData]);
       return [pokemonData];
     } catch (err) {
@@ -332,10 +380,12 @@ function App() {
     }
   };
 
+  // Function to fetch and filter all Pokemon based on filter criteria
   const fetchAllFilteredPokemon = async (filters) => {
     setSearchLoading(true);
     setSearchError(null);
 
+    // If only search term is provided, use direct search
     if (
       filters.searchTerm &&
       filters.types.length === 0 &&
@@ -346,28 +396,34 @@ function App() {
     }
 
     try {
+      // Get list of all Pokemon
       const allRes = await fetch(`${DETAILS_URL}?limit=${MAX_POKEMON}`);
       const allData = await allRes.json();
 
       let pokemonList = [...allData.results];
 
+      // Process in batches for performance
       const batchSize = 10;
       const filteredPokemon = [];
 
       for (let i = 0; i < pokemonList.length; i += batchSize) {
         const batch = pokemonList.slice(i, i + batchSize);
 
+        // Process batch in parallel
         const batchResults = await Promise.all(
           batch.map(async (pokemon) => {
             const pokemonId = pokemon.url.split("/").filter(Boolean).pop();
 
             try {
+              // Get Pokemon details
               const detailRes = await fetch(`${DETAILS_URL}/${pokemonId}`);
               const pokemonDetails = await detailRes.json();
 
+              // Get species data
               const speciesRes = await fetch(`${SPECIES_URL}/${pokemonId}`);
               const speciesData = await speciesRes.json();
 
+              // Format data
               const pokemonData = {
                 ...pokemon,
                 id: parseInt(pokemonId),
@@ -380,6 +436,7 @@ function App() {
 
               let matches = true;
 
+              // Apply search term filter
               if (filters.searchTerm) {
                 const searchLower = filters.searchTerm.toLowerCase();
                 const isNumeric = !isNaN(filters.searchTerm);
@@ -395,6 +452,7 @@ function App() {
                 }
               }
 
+              // Apply type filter
               if (matches && filters.types.length > 0) {
                 if (
                   !filters.types.some((type) =>
@@ -405,12 +463,14 @@ function App() {
                 }
               }
 
+              // Apply generation filter
               if (matches && filters.generations.length > 0) {
                 if (!filters.generations.includes(pokemonData.generation)) {
                   matches = false;
                 }
               }
 
+              // Apply games filter
               if (matches && filters.games.length > 0) {
                 if (
                   !filters.games.some((game) =>
@@ -429,8 +489,10 @@ function App() {
           })
         );
 
+        // Add valid results to collection
         filteredPokemon.push(...batchResults.filter(Boolean));
 
+        // Update display periodically during processing
         if (i % (batchSize * 5) === 0 || i + batchSize >= pokemonList.length) {
           const sortedPokemon = [...filteredPokemon].sort((a, b) => {
             const direction = filters.sort.direction === "asc" ? 1 : -1;
@@ -446,6 +508,7 @@ function App() {
         }
       }
 
+      // Final sort of all results
       const sortedPokemon = [...filteredPokemon].sort((a, b) => {
         const direction = filters.sort.direction === "asc" ? 1 : -1;
         if (filters.sort.field === "id") {
@@ -456,22 +519,25 @@ function App() {
         return 0;
       });
 
+      // Set error message if no results
       if (sortedPokemon.length === 0) {
-        setSearchError("No Pokémon found matching your filters");
+        setSearchError("No Pokemon found matching your filters");
       }
 
       setDisplayPokemon(sortedPokemon);
       return sortedPokemon;
     } catch (err) {
-      console.error("Failed to fetch filtered Pokémon:", err);
-      setSearchError("Error fetching Pokémon data");
+      console.error("Failed to fetch filtered Pokemon:", err);
+      setSearchError("Error fetching Pokemon data");
       return [];
     } finally {
       setSearchLoading(false);
     }
   };
 
+  // Handle filter changes from the filter component
   const handleFilterChange = (newFilters) => {
+    // Check if this is a reset to default
     const isReset =
       !newFilters.searchTerm &&
       newFilters.types.length === 0 &&
@@ -480,11 +546,14 @@ function App() {
       newFilters.sort.field === "id" &&
       newFilters.sort.direction === "asc";
 
+    // Check if sort field changed
     const isSortFieldChange = filterParams.sort.field !== newFilters.sort.field;
 
+    // Check if sort direction changed
     const isSortDirectionChange =
       filterParams.sort.direction !== newFilters.sort.direction && !isReset;
 
+    // Handle reset - go back to initial state
     if (isReset) {
       setFilterParams(newFilters);
       setIsFilterMode(false);
@@ -497,12 +566,15 @@ function App() {
       return;
     }
 
+    // Update filter parameters
     setFilterParams(newFilters);
 
+    // Reset visible count if sort changes
     if (isSortFieldChange || isSortDirectionChange) {
       setVisiblePokemonCount(LIMIT);
     }
 
+    // Handle sort direction change for ID sort
     if (
       isSortDirectionChange &&
       !isFilterMode &&
@@ -518,25 +590,31 @@ function App() {
       }
     }
 
+    // Check if any filter is active
     const isAnyFilterActive =
       newFilters.searchTerm ||
       newFilters.types.length > 0 ||
       newFilters.generations.length > 0 ||
       newFilters.games.length > 0;
 
+    // Handle filter mode changes
     if (isAnyFilterActive) {
+      // Enter filter mode
       setIsFilterMode(true);
       fetchAllFilteredPokemon(newFilters);
     } else if (!(isSortDirectionChange && newFilters.sort.field === "id")) {
+      // Exit filter mode
       setIsFilterMode(false);
       setSearchError(null);
 
+      // Load more data for name sort if needed
       if (
         newFilters.sort.field === "name" &&
         allPokemon.length < MAX_POKEMON / 2
       ) {
         fetchAllPokemonForNameSorting();
       } else {
+        // Just resort existing data
         const sortedPokemon = [...allPokemon].sort((a, b) => {
           const direction = newFilters.sort.direction === "asc" ? 1 : -1;
           if (newFilters.sort.field === "id") {
@@ -547,6 +625,7 @@ function App() {
           return 0;
         });
 
+        // Update display based on sort field
         if (newFilters.sort.field === "name") {
           setDisplayPokemon(sortedPokemon.slice(0, visiblePokemonCount));
         } else {
@@ -556,19 +635,23 @@ function App() {
     }
   };
 
+  // Handle navigation to a specific Pokemon
   const handleNavigate = async (id) => {
     if (id < 1) return;
 
     try {
+      // Check if Pokemon already loaded
       const existingPokemon = allPokemon.find((p) => p.id === id);
 
       if (!existingPokemon) {
+        // Fetch Pokemon if not already loaded
         const detailRes = await fetch(`${DETAILS_URL}/${id}`);
         const pokemonDetails = await detailRes.json();
 
         const speciesRes = await fetch(`${SPECIES_URL}/${id}`);
         const speciesData = await speciesRes.json();
 
+        // Format data
         const newPokemon = {
           name: pokemonDetails.name,
           url: `${DETAILS_URL}/${id}/`,
@@ -580,14 +663,17 @@ function App() {
           games: pokemonDetails.game_indices.map((g) => g.version.name),
         };
 
+        // Add to collection
         setAllPokemon((prev) => {
           const updatedList = [...prev, newPokemon];
           return updatedList;
         });
       }
 
+      // Select the Pokemon
       setSelectedPokemonId(id);
 
+      // Scroll to the selected Pokemon
       setTimeout(() => {
         const element = document.getElementById(`pokemon-${id}`);
         if (element) {
@@ -599,10 +685,12 @@ function App() {
     }
   };
 
+  // Combined loading state
   const isAnyLoading = loading || searchLoading || nameDataLoading;
 
   return (
     <div className="App">
+      {/* Background decorative element */}
       <div className="fixed inset-0 z-0 flex items-center justify-center pointer-events-none">
         <img
           src="src/assets/pokeball.png"
@@ -611,6 +699,7 @@ function App() {
         />
       </div>
       <div className="container mx-auto flex flex-col md:flex-row pt-4">
+        {/* Sidebar with app title and filter controls */}
         <div className="mb-6 md:mb-0 md:pr-4 w-[34vw] md:pl-4">
           <div className="sticky top-0 space-y-4">
             <div className="flex items-center space-x-4 pl-2 pt-4">
@@ -627,9 +716,11 @@ function App() {
           </div>
         </div>
 
+        {/* Main content area with Pokemon cards */}
         <div className="md:w-2/3 lg:w-3/4 pt-24">
           <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-y-16 gap-x-8 w-[66vw]">
             {displayPokemon.map((pokemon, index) => {
+              // Last card gets ref for infinite scrolling
               if (index === displayPokemon.length - 1 && !isFilterMode) {
                 return (
                   <div
@@ -660,6 +751,7 @@ function App() {
             })}
           </div>
 
+          {/* No results message */}
           {displayPokemon.length === 0 && !isAnyLoading && (
             <div className="flex justify-center items-center h-64">
               <p className="text-xl text-gray-600">
@@ -668,6 +760,7 @@ function App() {
             </div>
           )}
 
+          {/* Loading indicator */}
           {isAnyLoading && (
             <div className="flex justify-center items-centerh-32">
               <img
