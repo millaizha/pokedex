@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import Card from "./components/Card";
 import SearchFilterSort from "./components/Filter";
 import { DETAILS_URL, SPECIES_URL } from "./utils/constants";
+import { pokeball, pokeball_colored, pikachu_running } from "./assets/images";
 
 // Configuration constants
 const LIMIT = 10; // Number of Pokemon to load in each batch
@@ -693,7 +694,7 @@ function App() {
       {/* Background decorative element */}
       <div className="fixed inset-0 z-0 flex items-center justify-center pointer-events-none">
         <img
-          src="../src/assets/pokeball.png"
+          src={pokeball}
           alt="Pokeball background"
           className="w-[50vw] opacity-20 animate-spin-slow"
         />
@@ -704,7 +705,7 @@ function App() {
           <div className="sticky top-0 space-y-4">
             <div className="flex items-center space-x-4 pl-2 pt-4">
               <img
-                src="../src/assets/pokeball-colored.png"
+                src={pokeball_colored}
                 alt="Pokeball"
                 className="w-20 h-20"
               />
@@ -764,7 +765,7 @@ function App() {
           {isAnyLoading && (
             <div className="flex justify-center items-centerh-32">
               <img
-                src="../src/assets/pikachu-running.gif"
+                src={pikachu_running}
                 alt="Loading..."
                 className="w-72 h-51 z-10"
               />

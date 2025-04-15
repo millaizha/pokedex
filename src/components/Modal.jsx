@@ -7,6 +7,7 @@ import {
   TYPE_WEAKNESSES,
   POKEMON_COLORS,
 } from "../utils/constants";
+import { pokeball, pikachu_running } from "../assets/images";
 
 // Component for displaying detailed Pokemon information in a modal
 export default function PokemonModal({
@@ -359,7 +360,7 @@ export default function PokemonModal({
             {modalLoading || navigationLoading ? (
               <div className="flex justify-center items-center h-64">
                 <img
-                  src="../src/assets/pikachu-running.gif"
+                  src={pikachu_running}
                   alt="Loading..."
                   className="w-24 h-17"
                 />
@@ -374,7 +375,7 @@ export default function PokemonModal({
                       <div className="relative group w-96 h-96">
                         <div className="absolute inset-0 flex items-center justify-center">
                           <img
-                            src="../src/assets/pokeball.png"
+                            src={pokeball}
                             alt="Pokeball background"
                             className="w-100 h-100 opacity-20 animate-spin-slow"
                           />
@@ -529,7 +530,7 @@ export default function PokemonModal({
                       {evolutionLoading ? (
                         <div className="flex justify-center items-center h-64">
                           <img
-                            src="../src/assets/pikachu-running.gif"
+                            src={pikachu_running}
                             alt="Loading..."
                             className="w-24 h-17"
                           />
@@ -551,7 +552,7 @@ export default function PokemonModal({
                                 {evo.id === modalId && (
                                   <div className="absolute inset-0 flex items-center justify-center">
                                     <img
-                                      src="../src/assets/pokeball.png"
+                                      src={pokeball}
                                       alt="Pokeball background"
                                       className="w-36 h-36 opacity-20 animate-spin-slow absolute top-0"
                                     />

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import PokemonModal from "./Modal";
 import { IMAGE_URL, TYPE_COLORS } from "../utils/constants";
+import { pokeball_gif } from "../assets/images";
 
 export default function Card({ name, url, onNavigate }) {
   // State variables for Pokemon data and UI control
@@ -90,7 +91,7 @@ export default function Card({ name, url, onNavigate }) {
         ) : (
           <div className="flex justify-center items-center animate-pulse">
             <img
-              src="../src/assets/pokeball.gif"
+              src={pokeball_gif}
               alt="Loading..."
               className="w-40 h-40 object-contain absolute -top-8 z-10"
             />
