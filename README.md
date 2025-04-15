@@ -6,7 +6,7 @@ A webpage to browse, search and view detailed information about Pokémon.
 
 This Pokédex app allows users to browse through all available Pokémon, view detailed information about each one, and filter/sort the list according to various criteria. The application is built using  ReactJS and integrates with the PokéAPI.
 
-#### Live deployment: [millaizha.github.io/pokedex/](url)
+#### Live deployment: [millaizha.github.io/pokedex/](https://millaizha.github.io/pokedex/)
 
 ## Features
 
