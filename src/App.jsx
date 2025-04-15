@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import Card from "./components/Card";
 import SearchFilterSort from "./components/Filter";
+import {
+  DETAILS_URL,
+  SPECIES_URL
+} from "./utils/constants";
 
 const LIMIT = 10;
-const DETAILS_URL = "https://pokeapi.co/api/v2/pokemon";
-const SPECIES_URL = "https://pokeapi.co/api/v2/pokemon-species";
 const MAX_POKEMON = 1025;
 
 function App() {

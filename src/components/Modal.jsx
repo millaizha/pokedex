@@ -1,63 +1,12 @@
 import React, { useEffect, useState, useRef } from "react";
 import { FaChevronLeft, FaChevronRight, FaTimes } from "react-icons/fa";
-
-const IMAGE_URL = "https://assets.pokemon.com/assets/cms2/img/pokedex/full/";
-const DETAILS_URL = "https://pokeapi.co/api/v2/pokemon";
-
-const TYPE_COLORS = {
-  normal: "bg-gray-400",
-  fire: "bg-red-500",
-  water: "bg-blue-500",
-  grass: "bg-green-500",
-  electric: "bg-yellow-400",
-  ice: "bg-blue-200",
-  fighting: "bg-red-700",
-  poison: "bg-purple-500",
-  ground: "bg-yellow-600",
-  flying: "bg-sky-300",
-  psychic: "bg-pink-500",
-  bug: "bg-lime-500",
-  rock: "bg-yellow-800",
-  ghost: "bg-indigo-500",
-  dragon: "bg-purple-700",
-  dark: "bg-gray-700",
-  steel: "bg-gray-500",
-  fairy: "bg-pink-300",
-};
-
-const POKEMON_COLORS = {
-  black: "bg-gray-800",
-  blue: "bg-blue-600",
-  brown: "bg-amber-700",
-  gray: "bg-gray-500",
-  green: "bg-green-600",
-  pink: "bg-pink-500",
-  purple: "bg-purple-600",
-  red: "bg-red-600",
-  white: "bg-gray-100",
-  yellow: "bg-yellow-500",
-};
-
-const TYPE_WEAKNESSES = {
-  normal: ["fighting"],
-  fire: ["water", "ground", "rock"],
-  water: ["electric", "grass"],
-  grass: ["fire", "ice", "poison", "flying", "bug"],
-  electric: ["ground"],
-  ice: ["fire", "fighting", "rock", "steel"],
-  fighting: ["flying", "psychic", "fairy"],
-  poison: ["ground", "psychic"],
-  ground: ["water", "grass", "ice"],
-  flying: ["electric", "ice", "rock"],
-  psychic: ["bug", "ghost", "dark"],
-  bug: ["fire", "flying", "rock"],
-  rock: ["water", "grass", "fighting", "ground", "steel"],
-  ghost: ["ghost", "dark"],
-  dragon: ["ice", "dragon", "fairy"],
-  dark: ["fighting", "bug", "fairy"],
-  steel: ["fire", "fighting", "ground"],
-  fairy: ["poison", "steel"],
-};
+import {
+  IMAGE_URL,
+  DETAILS_URL,
+  TYPE_COLORS,
+  TYPE_WEAKNESSES,
+  POKEMON_COLORS,
+} from "../utils/constants";
 
 export default function PokemonModal({
   pokemonData: initialPokemonData,
