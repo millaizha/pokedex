@@ -693,7 +693,7 @@ function App() {
       {/* Background decorative element */}
       <div className="fixed inset-0 z-0 flex items-center justify-center pointer-events-none">
         <img
-          src="./src/assets/pokeball.png"
+          src="../src/assets/pokeball.png"
           alt="Pokeball background"
           className="w-[50vw] opacity-20 animate-spin-slow"
         />
@@ -704,7 +704,7 @@ function App() {
           <div className="sticky top-0 space-y-4">
             <div className="flex items-center space-x-4 pl-2 pt-4">
               <img
-                src="./src/assets/pokeball-colored.png"
+                src="../src/assets/pokeball-colored.png"
                 alt="Pokeball"
                 className="w-20 h-20"
               />
@@ -764,7 +764,7 @@ function App() {
           {isAnyLoading && (
             <div className="flex justify-center items-centerh-32">
               <img
-                src="./src/assets/pikachu-running.gif"
+                src="../src/assets/pikachu-running.gif"
                 alt="Loading..."
                 className="w-72 h-51 z-10"
               />

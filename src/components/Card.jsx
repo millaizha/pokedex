@@ -90,7 +90,7 @@ export default function Card({ name, url, onNavigate }) {
         ) : (
           <div className="flex justify-center items-center animate-pulse">
             <img
-              src="./src/assets/pokeball.gif"
+              src="../src/assets/pokeball.gif"
               alt="Loading..."
               className="w-40 h-40 object-contain absolute -top-8 z-10"
             />
